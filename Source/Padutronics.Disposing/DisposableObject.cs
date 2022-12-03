@@ -4,13 +4,11 @@ using System.Text;
 
 namespace Padutronics.Disposing;
 
-public abstract class DisposableObject : IDisposable
+public abstract class DisposableObject : IDisposableObject
 {
 #if DEBUG
     private readonly StackFrame creatingStackTrace = new(skipFrames: 1, needFileInfo: false);
 #endif
-
-    private bool isDisposed;
 
     ~DisposableObject()
     {
@@ -26,9 +24,14 @@ public abstract class DisposableObject : IDisposable
         TryDispose(isDisposing: false);
     }
 
+    public bool IsDisposed { get; private set; }
+
 #if DEBUG
     private string ObjectName => GetType().FullName ?? throw new Exception("Type name is null.");
 #endif
+
+    public event EventHandler<DisposedEventArgs>? Disposed;
+    public event EventHandler<DisposingEventArgs>? Disposing;
 
     public void Dispose()
     {
@@ -41,15 +44,29 @@ public abstract class DisposableObject : IDisposable
     {
         GC.SuppressFinalize(this);
 
-        isDisposed = true;
+        IsDisposed = true;
+    }
+
+    protected virtual void OnDisposed(DisposedEventArgs e)
+    {
+        Disposed?.Invoke(this, e);
+    }
+
+    protected virtual void OnDisposing(DisposingEventArgs e)
+    {
+        Disposing?.Invoke(this, e);
     }
 
     private void TryDispose(bool isDisposing)
     {
-        if (!isDisposed)
+        if (!IsDisposed)
         {
+            OnDisposing(DisposingEventArgs.Empty);
+
             Dispose(isDisposing);
             MarkAsDisposed();
+
+            OnDisposed(DisposedEventArgs.Empty);
         }
     }
 }
